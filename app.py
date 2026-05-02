@@ -78,36 +78,13 @@ if not api_key:
 
 client = anthropic.Anthropic(api_key=api_key)
 
-# ── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
+# ── SYSTEM PROMPT строится внутри функции ─────────────────────────────────────
 types_needed = []
 if inc_pos: types_needed.append("positive")
 if inc_neg: types_needed.append("negative")
 if inc_bnd: types_needed.append("boundary")
-
-SYSTEM = f"""You are a senior QA engineer. Given a requirements document, generate exactly {n_cases} test cases as a JSON array.
-
-Return ONLY the JSON array. No markdown fences, no explanation, no text before or after.
-
-Schema:
-[
-  {{
-    "id": "TC-001",
-    "title": "Short descriptive title",
-    "type": "positive" | "negative" | "boundary",
-    "priority": "high" | "medium" | "low",
-    "preconditions": "Single string",
-    "steps": ["Step 1", "Step 2", "Step 3"],
-    "expected_result": "Single string",
-    "tags": ["tag1", "tag2"]
-  }}
-]
-
-Rules:
-- "preconditions" and "expected_result" MUST be plain strings, never arrays
-- Cover types: {", ".join(types_needed) if types_needed else "positive, negative, boundary"}
-- Write in {"Russian" if lang == "Русский" else "English"}
-- Be specific and actionable
-"""
+types_str = ", ".join(types_needed) if types_needed else "positive, negative, boundary"
+lang_str = "Russian" if lang == "Русский" else "English"
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def to_str(v):
@@ -117,12 +94,27 @@ def to_str(v):
 def generate_test_cases(tz_text: str) -> list[dict]:
     if len(tz_text) > 8000:
         tz_text = tz_text[:8000] + "\n...[truncated]"
-    msg = client.messages.create(
-        model="claude-3-5-haiku-20241022",
-        max_tokens=4096,
-        system=SYSTEM,
-        messages=[{"role": "user", "content": f"Requirements:\n\n{tz_text}"}],
+
+    system_prompt = (
+        f"You are a senior QA engineer. Generate exactly {n_cases} test cases as a JSON array. "
+        "Return ONLY the JSON array, no markdown, no explanation. "
+        'Each item: {"id":"TC-001","title":"...","type":"positive|negative|boundary",'
+        '"priority":"high|medium|low","preconditions":"string","steps":["..."],'
+        '"expected_result":"string","tags":["..."]}. '
+        f"Cover types: {types_str}. Write in {lang_str}."
     )
+
+    try:
+        msg = client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": f"Requirements:\n\n{tz_text}"}],
+        )
+    except Exception as e:
+        st.error(f"API Error: {e}")
+        return []
+
     raw = msg.content[0].text.strip()
     raw = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
     m = re.search(r"\[.*\]", raw, re.DOTALL)
