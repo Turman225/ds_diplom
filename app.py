@@ -1,4 +1,3 @@
-
 import streamlit as st
 import anthropic
 import json
@@ -119,7 +118,7 @@ def generate_test_cases(tz_text: str) -> list[dict]:
     if len(tz_text) > 8000:
         tz_text = tz_text[:8000] + "\n...[truncated]"
     msg = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-3-5-haiku-20241022",
         max_tokens=4096,
         system=SYSTEM,
         messages=[{"role": "user", "content": f"Requirements:\n\n{tz_text}"}],
@@ -281,4 +280,3 @@ elif tz_text:
     st.info("👆 Нажми «Генерировать тест-кейсы»")
 else:
     st.info("👆 Введи текст ТЗ или загрузи файл")
-
