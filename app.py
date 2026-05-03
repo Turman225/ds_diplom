@@ -1,5 +1,5 @@
 import streamlit as st
-import anthropic
+from groq import Groq
 import json
 import re
 import io
@@ -31,7 +31,7 @@ st.markdown("""
 # ── API KEY ───────────────────────────────────────────────────────────────────
 api_key = ""
 if hasattr(st, "secrets"):
-    api_key = st.secrets.get("ANTHROPIC_API_KEY", "")
+    api_key = st.secrets.get("GROQ_API_KEY", "")
 
 with st.sidebar:
     st.title("🧪 Test Case Generator")
@@ -40,10 +40,10 @@ with st.sidebar:
 
     if not api_key:
         api_key = st.text_input(
-            "🔑 Anthropic API Key",
+            "🔑 Groq API Key",
             type="password",
-            placeholder="sk-ant-...",
-            help="Получить: https://console.anthropic.com",
+            placeholder="gsk_...",
+            help="Получить бесплатно: https://console.groq.com",
         )
 
     if api_key:
@@ -69,14 +69,14 @@ with st.sidebar:
 
     lang = st.selectbox("Язык тест-кейсов", ["Русский", "English"])
     st.divider()
-    st.caption("Powered by Claude · Anthropic")
+    st.caption("Powered by Llama 3.3 · Groq")
 
 if not api_key:
     st.title("🧪 Test Case Generator из ТЗ")
     st.info("👈 Введи Anthropic API Key в боковой панели чтобы начать")
     st.stop()
 
-client = anthropic.Anthropic(api_key=api_key)
+client = Groq(api_key=api_key)
 
 # ── SYSTEM PROMPT строится внутри функции ─────────────────────────────────────
 types_needed = []
@@ -105,17 +105,20 @@ def generate_test_cases(tz_text: str) -> list[dict]:
     )
 
     try:
-        msg = client.messages.create(
-            model="claude-3-5-haiku-20241022",
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             max_tokens=4096,
-            system=system_prompt,
-            messages=[{"role": "user", "content": f"Requirements:\n\n{tz_text}"}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Requirements:\n\n{tz_text}"},
+            ],
+            temperature=0.3,
         )
     except Exception as e:
         st.error(f"API Error: {e}")
         return []
 
-    raw = msg.content[0].text.strip()
+    raw = response.choices[0].message.content.strip()
     raw = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
     m = re.search(r"\[.*\]", raw, re.DOTALL)
     if m:
